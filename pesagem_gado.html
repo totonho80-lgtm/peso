@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Pesagem de Gado</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pesagem Gado">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#4a3f38">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{--brown:#4a3f38;--orange:#f47c3c;--bg:#faf5ee;--line:#e6dccf;--ok:#2e7d32;--red:#c62828}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:#2b2420}
+header{background:var(--brown);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5}
+header h1{font-size:18px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header button{background:none;border:0;color:#fff;font-size:20px;padding:4px 8px;cursor:pointer}
+#sync{font-size:12px;padding:3px 8px;border-radius:10px;background:#ffffff22;cursor:pointer}
+#sync.off{background:var(--red)}#sync.ok{background:var(--ok)}
+main{max-width:640px;margin:0 auto;padding:14px}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:15px;font-size:16px;font-weight:700;cursor:pointer;background:var(--orange);color:#fff;margin:10px 0}
+.btn.sec{background:var(--brown)}.btn.ghost{background:#fff;color:var(--brown);border:2px solid var(--brown)}
+.btn.del{background:#fff;color:var(--red);border:2px solid var(--red)}
+.btn.wa{background:#25d366}.btn:disabled{opacity:.5}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px;color:var(--brown)}
+input{width:100%;padding:13px;font-size:17px;border:2px solid var(--line);border-radius:10px;background:#fff}
+input:focus{outline:none;border-color:var(--orange)}
+.big{font-size:30px;text-align:center;font-weight:700}
+.seg{display:flex;gap:8px;margin:8px 0}
+.seg button{flex:1;padding:12px;font-size:16px;font-weight:700;border:2px solid var(--brown);background:#fff;color:var(--brown);border-radius:10px}
+.seg button.on{background:var(--brown);color:#fff}
+.seg.modo button{border-color:var(--orange);color:var(--orange)}.seg.modo button.on{background:var(--orange);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:var(--brown);color:#fff;padding:8px 3px;font-size:11px}
+td{padding:6px 2px;text-align:center;border-bottom:1px solid var(--line)}
+td small{font-size:10.5px;color:#7a6c60}
+tr:nth-child(even) td{background:#fff4ec}
+tr.hl td{background:#ffd5b8!important;font-weight:700}
+td input{padding:6px;font-size:14px;text-align:center;border-width:1px}
+.x{background:none;border:0;color:var(--red);font-size:18px;cursor:pointer}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.sum.c4{grid-template-columns:repeat(4,1fr)}
+.sum b{display:block;font-size:16px;color:var(--brown)}.sum.c4 b{font-size:14px}.sum span{font-size:11px;color:#7a6c60}
+.lote{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.muted{color:#7a6c60;font-size:13px}.prev{text-align:center;color:var(--brown);min-height:26px;font-weight:700;font-size:22px}
+.prev2{text-align:center;font-size:13px;color:#7a6c60;min-height:18px}
+.calcbox{font-size:12.5px;color:#5c4f45;background:#fff4ec;border-radius:10px;padding:8px 10px;margin:6px 0;line-height:1.5}
+.calcbox:empty{display:none}
+.rbox{background:#eaf5e6;color:#2e5d2a;border-radius:10px;padding:9px 10px;margin:6px 0;text-align:center;font-size:14px;line-height:1.4}
+.warn{background:#fff3cd;border:1px solid #ffe08a;padding:10px;border-radius:10px;font-size:13px;margin:10px 0}
+details summary{cursor:pointer;font-size:14px}
+.row2{display:flex;gap:10px;align-items:center}.row2 label{margin:0;flex:1}.row2 input{width:110px;text-align:center;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <button id="back" onclick="goBack()" style="display:none">←</button>
+  <h1 id="title">🐂 Pesagem de Gado</h1>
+  <span id="sync" class="off" onclick="syncInfo()">…</span>
+  <button onclick="setUrl()" title="Configurar planilha">⚙</button>
+</header>
+<main id="app"></main>
+
+<script>
+/* ====== CONFIG ====== */
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwrEPhP0mRwm2Kw-d-8NJ-XxDWe8GhrEqGLwYE1fEyz9M94LVEupmbqiFfJkK2WqpHC/exec';
+const ARROBA_KG = 30;          // 1 @ de peso vivo = 30 kg (base da tabela de referência)
+const ARROBA_CARCACA_KG = 15;  // 1 @ de carcaça = 15 kg (padrão de frigorífico)
+const DEFAULT_REND = 50;       // aproveitamento (rendimento de carcaça) padrão, em %
+const DEFAULT_REF = 'GadoCerto · Mato Grosso · atualizado em 13/10';
+const DEFAULT_REF_C = 'Preço da @ de carcaça';
+
+/* ====== TABELA PADRÃO (ref. 13/10 - Mato Grosso) — preço por @ de peso vivo ====== */
+const DEFAULT_PRECOS = {
+ M:[[450,399.90],[435,402.21],[420,405.22],[405,408.33],[390,411.64],[375,416.71],[360,422.52],[345,427.84],[330,435.51],[315,444.99],[300,452.61],[285,461.24],[270,472.31],[255,481.08],[240,489.08],[225,499.42],[210,509.26],[195,519.09],[180,531.34]],
+ F:[[405,326.75],[390,334.19],[375,337.72],[360,341.07],[345,345.21],[330,350.30],[315,355.42],[300,361.43],[285,368.58],[270,375.50],[255,383.46],[240,392.76],[225,401.32],[210,410.59],[195,421.47],[180,432.52],[165,445.10]]
+};
+
+/* ====== ESTADO ====== */
+const $=id=>document.getElementById(id);
+const LS=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
+const SV=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+let SCRIPT_URL=localStorage.getItem('gc_url')||DEFAULT_SCRIPT_URL;
+// se a URL padrão do arquivo mudou, ela passa a valer (ignora URL antiga salva no aparelho)
+if(localStorage.getItem('gc_url_def')!==DEFAULT_SCRIPT_URL){SCRIPT_URL=DEFAULT_SCRIPT_URL;localStorage.setItem('gc_url',SCRIPT_URL);localStorage.setItem('gc_url_def',DEFAULT_SCRIPT_URL)}
+let precos=LS('gc_precos',null)||toPrecos(DEFAULT_PRECOS);      // planilha 1: peso vivo (faixas)
+let ref=LS('gc_ref',DEFAULT_REF);
+let precosC=LS('gc_precosC',{M:0,F:0});                          // planilha 2: carcaça (R$ por @ de carcaça)
+let refC=LS('gc_refC',DEFAULT_REF_C);
+let lotes=LS('gc_lotes',[]);
+let lote=null, pesos=[], sexo=LS('gc_sexo','M'), modo=LS('gc_modo','V'), rend=LS('gc_rend',DEFAULT_REND), view='home', stack=[];
+let queue=LS('gc_queue',[]), busy=false, lastErr='', inflight=null;
+
+function toPrecos(d){const o={};for(const s in d)o[s]=d[s].map(r=>({peso:r[0],arroba:r[1]}));return o}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const brl=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const num=(v,d=1)=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDate=t=>new Date(t).toLocaleDateString('pt-BR')+' às '+new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+const code=l=>'#'+l.id.slice(-4).toUpperCase();
+const loteNome=l=>(l.nome&&l.nome.trim())||('Lote '+code(l));
+const r2=v=>Math.round(v*100)/100;
+const sxPl=s=>s==='M'?'♂ Machos':'♀ Fêmeas';
+const sxSg=s=>s==='M'?'♂ Macho':'♀ Fêmea';
+function isoLocal(t){const d=new Date(t),p=n=>String(n).padStart(2,'0'),o=-d.getTimezoneOffset(),s=o>=0?'+':'-',a=Math.abs(o);
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())+s+p(Math.floor(a/60))+':'+p(a%60)}
+
+/* ====== CÁLCULO ====== */
+// planilha 1 (peso vivo): preço da @ por faixa de peso, interpolado
+function calc(s,peso){
+  const t=(precos[s]||[]).slice().sort((a,b)=>a.peso-b.peso);
+  if(!t.length)return{arroba:0,valor:0,fora:true,lo:null,hi:null};
+  const first=t[0],last=t[t.length-1];
+  let a,lo,hi,fora=false;
+  if(peso<=first.peso){a=first.arroba;lo=hi=first;fora=peso<first.peso}
+  else if(peso>=last.peso){a=last.arroba;lo=hi=last;fora=peso>last.peso}
+  else for(let i=0;i<t.length-1;i++){
+    if(peso>=t[i].peso&&peso<=t[i+1].peso){
+      const f=(peso-t[i].peso)/(t[i+1].peso-t[i].peso);
+      a=t[i].arroba+f*(t[i+1].arroba-t[i].arroba);
+      lo=f===1?t[i+1]:t[i];hi=f===0?t[i]:t[i+1];break}
+  }
+  a=r2(a);
+  return{arroba:a,valor:r2(peso/ARROBA_KG*a),fora,lo:{peso:lo.peso,arroba:lo.arroba},hi:{peso:hi.peso,arroba:hi.arroba}};
+}
+// aproveitamento: @ de carcaça = peso × rendimento% ÷ 15
+const carcKg=(peso,r)=>peso*r/100;
+const carcArr=(peso,r)=>r2(carcKg(peso,r)/ARROBA_CARCACA_KG);
+const rendOf=x=>x.rend>0?x.rend:DEFAULT_REND;
+const acOf=x=>x.ac>0?x.ac:carcArr(x.peso,rendOf(x));
+const isC=x=>x.modo==='C';
+const pkgOf=x=>x.arroba/(isC(x)?ARROBA_CARCACA_KG:ARROBA_KG);   // R$/kg da base usada (vivo ou carcaça)
+const pkg=a=>a/ARROBA_KG;
+// cálculo conforme a base escolhida: V = peso vivo (planilha 1) · C = carcaça (planilha 2)
+function calcAny(m,s,peso,r){
+  if(m==='C'){
+    const price=precosC[s]||0;
+    if(!(price>0))return{erro:'preco'};
+    if(!(r>0&&r<=100))return{erro:'rend'};
+    const ac=carcArr(peso,r);
+    return{modo:'C',arroba:price,valor:r2(ac*price),fora:false,lo:null,hi:null,ac};
+  }
+  const c=calc(s,peso);c.modo='V';c.ac=(r>0&&r<=100)?carcArr(peso,r):carcArr(peso,DEFAULT_REND);return c;
+}
+function faixaTxt(x){
+  if(isC(x))return '🥩 carcaça';
+  if(!x.lo)return '—';
+  return x.lo.peso===x.hi.peso?num(x.lo.peso,0)+' kg':num(x.lo.peso,0)+'–'+num(x.hi.peso,0)+' kg';
+}
+function explain(p,c,s){
+  const l=[];
+  l.push(`<b>Base:</b> tabela peso vivo ${sxPl(s)} · ${esc(ref)}`);
+  if(c.lo){
+    if(c.fora)l.push(`⚠ Peso fora da tabela — usando a faixa de ponta: ${num(c.lo.peso,0)} kg = ${brl(c.lo.arroba)}/@`);
+    else if(c.lo.peso===c.hi.peso)l.push(`Faixa exata: ${num(c.lo.peso,0)} kg = ${brl(c.lo.arroba)}/@`);
+    else l.push(`Faixas: ${num(c.lo.peso,0)} kg = ${brl(c.lo.arroba)}/@  ↔  ${num(c.hi.peso,0)} kg = ${brl(c.hi.arroba)}/@ (interpolado)`);
+  }
+  l.push(`Cálculo: ${num(p)} kg ÷ ${ARROBA_KG} = ${num(p/ARROBA_KG,2)} @ × ${brl(c.arroba)}/@ = <b>${brl(c.valor)}</b>`);
+  return l.join('<br>');
+}
+function explainC(p,r,c,s){
+  return `<b>Base:</b> tabela de carcaça ${sxPl(s)} · ${esc(refC)}<br>`+
+   `Carcaça: ${num(p)} kg × ${num(r,1)}% = ${num(carcKg(p,r),1)} kg ÷ ${ARROBA_CARCACA_KG} = ${num(c.ac,2)} @<br>`+
+   `Cálculo: ${num(c.ac,2)} @ × ${brl(c.arroba)}/@ de carcaça = <b>${brl(c.valor)}</b>`;
+}
+function baseTable(s,c){
+  const t=(precos[s]||[]).slice().sort((a,b)=>b.peso-a.peso);
+  const hl=r=>c&&c.lo&&(c.lo.peso===r.peso||c.hi.peso===r.peso)?' class="hl"':'';
+  return `<table><tr><th>Peso kg</th><th>@</th><th>R$/@</th><th>R$/kg</th><th>R$/cabeça</th></tr>${t.map(r=>`<tr${hl(r)}><td>${num(r.peso,0)}</td><td>${num(r.peso/ARROBA_KG,1)}</td><td>${num(r.arroba,2)}</td><td>${num(pkg(r.arroba),2)}</td><td>${num(r.peso/ARROBA_KG*r.arroba,2)}</td></tr>`).join('')}</table>`;
+}
+function baseTableC(){
+  return `<table><tr><th>Sexo</th><th>R$/@ carcaça</th><th>R$/kg carcaça</th></tr>${['M','F'].map(s=>`<tr${s===sexo?' class="hl"':''}><td>${sxSg(s)}</td><td>${precosC[s]>0?num(precosC[s],2):'não cadastrado'}</td><td>${precosC[s]>0?num(precosC[s]/ARROBA_CARCACA_KG,2):'—'}</td></tr>`).join('')}</table>`;
+}
+
+/* ====== API / FILA ====== */
+async function api(action,p={}){
+  if(!SCRIPT_URL)throw new Error('sem url');
+  const r=await fetch(SCRIPT_URL+'?'+new URLSearchParams({action,...p}));
+  const txt=await r.text();let j;
+  try{j=JSON.parse(txt)}catch(e){throw new Error('Resposta inválida do Apps Script. Confira a implantação: Executar como "Eu" e Acesso "Qualquer pessoa".')}
+  if(!j.ok)throw new Error(j.error||'erro');
+  return j;
+}
+function saveQ(){SV('gc_queue',queue);setSync()}
+function dropOps(fn){for(let i=queue.length-1;i>=0;i--){if(queue[i]!==inflight&&fn(queue[i]))queue.splice(i,1)}saveQ()}
+function enqueue(a,p){queue.push({a,p});saveQ();flush()}
+async function flush(){
+  if(busy)return;busy=true;setSync();
+  try{
+    while(queue.length){
+      const op=queue[0];inflight=op;
+      await api(op.a,op.p);
+      inflight=null;
+      const i=queue.indexOf(op);if(i>=0)queue.splice(i,1);
+      saveQ();
+    }
+    lastErr='';
+  }catch(e){lastErr=e.message||String(e)}
+  inflight=null;busy=false;setSync();
+}
+function setSync(){
+  const s=$('sync');
+  if(!SCRIPT_URL){s.className='off';s.textContent='sem planilha';return}
+  if(queue.length){s.className='off';s.textContent='⟳ '+queue.length+' pendente'+(queue.length>1?'s':'');return}
+  s.className='ok';s.textContent='✓ sincronizado';
+}
+function syncInfo(){
+  if(!queue.length){alert('Tudo sincronizado com a planilha ✓');return}
+  alert('Pendentes: '+queue.length+'\nÚltimo erro: '+(lastErr||'(tentando enviar…)')+'\n\nVou tentar reenviar agora.');
+  flush();
+}
+setInterval(()=>{if(queue.length)flush()},15000);
+function setUrl(){
+  const u=prompt('Cole a URL do Apps Script (termina em /exec):',SCRIPT_URL);
+  if(u===null)return;
+  SCRIPT_URL=u.trim();localStorage.setItem('gc_url',SCRIPT_URL);
+  if(SCRIPT_URL)api('ping').then(()=>{alert('Planilha conectada ✓');flush();syncDown()}).catch(e=>alert('Não consegui conectar: '+e.message));
+  setSync();render();
+}
+async function syncDown(){
+  if(!SCRIPT_URL)return;
+  try{
+    const r=await api('lotes');
+    const pend=new Set(queue.filter(o=>o.a==='addLote').map(o=>o.p.id));
+    const del=new Set(queue.filter(o=>o.a==='delLote').map(o=>o.p.id));
+    const remote=r.data.filter(l=>!del.has(l.id)).map(l=>({id:l.id,t:Date.parse(l.criado)||0,prop:l.prop,tel:l.tel,nome:l.nome}));
+    const ids=new Set(remote.map(l=>l.id));
+    // lotes só locais e ainda aguardando envio continuam; os demais seguem a planilha
+    lotes=[...remote,...lotes.filter(l=>!ids.has(l.id)&&pend.has(l.id))].sort((a,b)=>b.t-a.t);SV('gc_lotes',lotes);
+    if(queue.some(o=>o.a==='savePrecos'))return;   // há alteração de preços local ainda não enviada
+    const p=await api('precos');
+    const vivo=p.data.filter(x=>x.sexo==='M'||x.sexo==='F');
+    if(vivo.length){precos={M:[],F:[]};vivo.forEach(x=>precos[x.sexo].push({peso:x.peso,arroba:x.arroba}));SV('gc_precos',precos)}
+    p.data.forEach(x=>{if(x.sexo==='CM')precosC.M=x.arroba;if(x.sexo==='CF')precosC.F=x.arroba});SV('gc_precosC',precosC);
+    if(p.ref){ref=p.ref;SV('gc_ref',ref)}
+    if(p.refc){refC=p.refc;SV('gc_refC',refC)}
+    if(view==='buscar')render();
+  }catch(e){lastErr=e.message}
+}
+
+/* ====== NAVEGAÇÃO ====== */
+function go(v,push=true){if(push)stack.push(view);view=v;render()}
+function goBack(){view=stack.pop()||'home';render()}
+
+function render(){
+  $('back').style.display=view==='home'?'none':'block';
+  const T={home:'🐂 Pesagem de Gado',novo:'Novo lote',buscar:'Buscar lote',lote:lote?loteNome(lote):'',relatorio:'Relatório',precos:'Planilhas de preços'};
+  $('title').textContent=T[view];
+  const a=$('app');
+  if(view==='home'){
+    a.innerHTML=`${SCRIPT_URL?'':'<div class="warn">⚠ Planilha não conectada. Toque em ⚙ e cole a URL do Apps Script. Enquanto isso os dados ficam só neste aparelho.</div>'}
+    <button class="btn" onclick="go('novo')">➕ Cadastrar novo lote</button>
+    <button class="btn sec" onclick="go('buscar')">🔎 Buscar lote cadastrado</button>
+    <button class="btn ghost" onclick="go('precos')">📋 Planilhas de preço (peso vivo e carcaça)</button>`;
+  }else if(view==='novo'){
+    a.innerHTML=`<div class="card"><label>Nome do lote *</label><input id="n_nome" autocomplete="off" placeholder="Ex.: Lote Fazenda Boa Vista">
+    <label>Nome do proprietário *</label><input id="n_prop" autocomplete="off">
+    <label>Telefone (com DDD) *</label><input id="n_tel" inputmode="tel" placeholder="(65) 99999-9999">
+    <p class="muted">Todos os campos são obrigatórios. A data e a hora do cadastro são registradas automaticamente.</p></div>
+    <button class="btn" onclick="criarLote()">Salvar e iniciar pesagem</button>`;
+    setTimeout(()=>$('n_nome').focus(),50);
+  }else if(view==='buscar'){
+    a.innerHTML=`<input id="q" placeholder="Buscar por lote, proprietário ou telefone" oninput="listaLotes()"><div id="lista"></div>`;listaLotes();
+  }else if(view==='lote')renderLote();
+  else if(view==='relatorio')renderRel();
+  else if(view==='precos')renderPrecos();
+}
+
+/* ====== LOTES ====== */
+function criarLote(){
+  const nome=$('n_nome').value.trim(),prop=$('n_prop').value.trim(),tel=$('n_tel').value.trim();
+  if(!nome){alert('Informe o nome do lote');$('n_nome').focus();return}
+  if(!prop){alert('Informe o nome do proprietário');$('n_prop').focus();return}
+  if(tel.replace(/\D/g,'').length<10){alert('Informe o telefone com DDD');$('n_tel').focus();return}
+  const l={id:uid(),t:Date.now(),nome,prop,tel};
+  lotes.unshift(l);SV('gc_lotes',lotes);
+  enqueue('addLote',{id:l.id,criado:isoLocal(l.t),nome,prop,tel});
+  abrirLote(l.id,false);
+}
+function listaLotes(){
+  const q=($('q')?.value||'').toLowerCase();
+  const r=lotes.filter(l=>((l.nome||'')+' '+l.prop+' '+l.tel).toLowerCase().includes(q));
+  $('lista').innerHTML=r.length?r.map(l=>`<div class="card lote" onclick="abrirLote('${l.id}')"><div><b>${esc(loteNome(l))}</b><div class="muted">${esc(l.prop)} · ${esc(l.tel)}</div><div class="muted">Criado em ${fmtDate(l.t)}</div></div><span>${code(l)} ›</span></div>`).join(''):'<p class="muted" style="text-align:center">Nenhum lote encontrado</p>';
+}
+async function abrirLote(id,push=true){
+  lote=lotes.find(l=>l.id===id);
+  pesos=LS('gc_pesos_'+id,[]);
+  if(view==='novo'){stack.pop();view='lote'}else go('lote',push);
+  render();
+  if(!SCRIPT_URL)return;
+  try{
+    await flush();
+    const r=await api('pesos',{lote:id});
+    const m=new Map();
+    r.data.forEach(x=>m.set(x.id,{id:x.id,t:Date.parse(x.criado)||0,sexo:x.sexo,peso:x.peso,arroba:x.arroba,valor:x.valor,ref:x.ref,
+      lo:x.ik?{peso:x.ik,arroba:x.ia}:null,hi:x.sk?{peso:x.sk,arroba:x.sa}:null,rend:x.rend,ac:x.ac,modo:x.bp==='carcaca'?'C':'V'}));
+    queue.filter(o=>o.a==='addPeso'&&o.p.lote===id).forEach(o=>{const x=pesos.find(z=>z.id===o.p.id);if(x)m.set(x.id,x)});
+    pesos=[...m.values()].sort((a,b)=>a.t-b.t);SV('gc_pesos_'+id,pesos);
+    if(view==='lote'&&lote&&lote.id===id)renderLote(true);
+  }catch(e){lastErr=e.message}
+}
+function excluirLote(){
+  const n=pesos.length,id=lote.id;
+  if(!confirm(`Excluir o lote "${loteNome(lote)}" e ${n} peso${n===1?'':'s'} registrado${n===1?'':'s'}?\n\nIsso também apaga da planilha e não dá para desfazer.`))return;
+  lotes=lotes.filter(l=>l.id!==id);SV('gc_lotes',lotes);
+  try{localStorage.removeItem('gc_pesos_'+id)}catch(e){}
+  dropOps(o=>(o.a==='addPeso'&&o.p.lote===id));
+  enqueue('delLote',{id});
+  lote=null;pesos=[];stack=['home'];view='buscar';render();
+}
+function recalcLote(){
+  if(!pesos.length){alert('Este lote ainda não tem pesos.');return}
+  const nV=pesos.filter(x=>!isC(x)).length,nC=pesos.length-nV;
+  if(!confirm(`Recalcular os ${pesos.length} peso${pesos.length===1?'':'s'} deste lote com as tabelas atuais?\n\n`+(nV?`Peso vivo (${nV}): ${ref}\n`:'')+(nC?`Carcaça (${nC}): ${refC}\n`:'')+`\nOs valores registrados serão substituídos, na tela e na planilha.`))return;
+  let pulou=0;
+  pesos.forEach(x=>{
+    const c=calcAny(isC(x)?'C':'V',x.sexo,x.peso,rendOf(x));
+    if(c.erro){pulou++;return}
+    x.arroba=c.arroba;x.valor=c.valor;x.lo=c.lo;x.hi=c.hi;x.ac=c.ac;x.ref=isC(x)?refC:ref;
+    dropOps(o=>o.a==='addPeso'&&o.p.id===x.id);
+    enqueue('addPeso',pesoParams(x));
+  });
+  SV('gc_pesos_'+lote.id,pesos);renderLote(true);
+  alert(pulou?`Recalculado. ${pulou} peso(s) de carcaça ficaram como estavam porque falta o preço da @ de carcaça em "Planilhas de preço".`:'Lote recalculado com as tabelas atuais ✓');
+}
+
+/* ====== PESAGEM ====== */
+function pesoParams(x){
+  return{id:x.id,lote:lote.id,prop:lote.prop,nome:lote.nome||'',criado:isoLocal(x.t),sexo:x.sexo,peso:x.peso,arroba:x.arroba,valor:x.valor,
+    ref:x.ref||'',ik:x.lo?x.lo.peso:'',ia:x.lo?x.lo.arroba:'',sk:x.hi?x.hi.peso:'',sa:x.hi?x.hi.arroba:'',
+    pk:r2(pkgOf(x)),rend:rendOf(x),ac:acOf(x),bp:isC(x)?'carcaca':'vivo'};
+}
+function renderLote(keepFocus){
+  const v=keepFocus&&$('peso')?$('peso').value:'';
+  $('app').innerHTML=`<div class="card"><b>${esc(loteNome(lote))}</b> <span class="muted">${code(lote)}</span>
+    <div class="muted">${esc(lote.prop)} · ${esc(lote.tel)}</div><div class="muted">Lote criado em ${fmtDate(lote.t)}</div></div>
+  <div class="card">
+    <div class="muted" style="margin-bottom:2px">Base do preço deste peso</div>
+    <div class="seg modo"><button id="mV" class="${modo==='V'?'on':''}" onclick="setModo('V')">🐂 Peso vivo</button><button id="mC" class="${modo==='C'?'on':''}" onclick="setModo('C')">🥩 Carcaça</button></div>
+    <div class="seg"><button id="sM" class="${sexo==='M'?'on':''}" onclick="setSexo('M')">♂ Macho</button><button id="sF" class="${sexo==='F'?'on':''}" onclick="setSexo('F')">♀ Fêmea</button></div>
+    <input id="peso" class="big" inputmode="decimal" placeholder="Peso (kg)" value="${esc(v)}" oninput="preview()" onkeydown="if(event.key==='Enter')salvarPeso()">
+    <div class="prev" id="prev"></div>
+    <div class="prev2" id="prev2"></div>
+    <div class="row2"><label for="rend">Aproveitamento de carcaça (%)</label><input id="rend" inputmode="decimal" value="${esc(String(rend).replace('.',','))}" oninput="onRend()"></div>
+    <div class="rbox" id="rbox"></div>
+    <div class="calcbox" id="calcbox"></div>
+    <button class="btn" onclick="salvarPeso()">Salvar peso e próximo</button>
+  </div>
+  <details class="card"><summary><b>Base de cálculo</b> · <span id="baseSum"></span></summary><div id="baseTab" style="margin-top:8px"></div></details>
+  <div class="card sum c4" id="sum"></div>
+  <div class="card"><b>Pesos registrados</b><div id="lst"></div></div>
+  <button class="btn sec" id="btnRel" onclick="go('relatorio')" ${pesos.length?'':'disabled'}>📄 Gerar relatório</button>
+  <button class="btn ghost" onclick="recalcLote()">🔄 Recalcular com a tabela atual</button>
+  <button class="btn del" onclick="excluirLote()">🗑 Excluir lote</button>`;
+  lista();preview();if(!keepFocus||v)$('peso').focus();
+}
+function setSexo(s){sexo=s;SV('gc_sexo',s);$('sM').className=s==='M'?'on':'';$('sF').className=s==='F'?'on':'';preview()}
+function setModo(m){modo=m;SV('gc_modo',m);$('mV').className=m==='V'?'on':'';$('mC').className=m==='C'?'on':'';preview()}
+const parsePeso=s=>parseFloat(String(s).replace(',','.'));
+function getRend(){const r=parsePeso($('rend').value);return r>0&&r<=100?r:null}
+function onRend(){const r=getRend();if(r){rend=r;SV('gc_rend',r)}preview()}
+function updateBase(c){
+  if(modo==='C'){
+    $('baseSum').textContent='🥩 Carcaça · '+refC;
+    $('baseTab').innerHTML=baseTableC();
+  }else{
+    $('baseSum').textContent='🐂 Peso vivo · '+sxPl(sexo)+' · '+ref;
+    $('baseTab').innerHTML=baseTable(sexo,c&&!c.erro?c:null);
+  }
+}
+function preview(){
+  const p=parsePeso($('peso').value),r=getRend();
+  const tag=modo==='C'?`tabela de carcaça ${sxPl(sexo)} · ${esc(refC)}`:`tabela peso vivo ${sxPl(sexo)} · ${esc(ref)}`;
+  const rWarn='⚠ Informe o aproveitamento (1 a 100%)';
+  const set=(a,b,c,d)=>{$('prev').textContent=a;$('prev2').textContent=b;$('rbox').innerHTML=c;$('calcbox').innerHTML=d};
+  if(!(p>0)){
+    set('','',r?`🥩 Aproveitamento de ${num(r,1)}% · 1 @ de carcaça = ${ARROBA_CARCACA_KG} kg`:rWarn,`<b>Base:</b> ${tag}`);
+    updateBase(null);return}
+  const c=calcAny(modo,sexo,p,r);
+  const rb=r?`🥩 <b>${num(carcArr(p,r),2)} @ de carcaça</b><br>${num(p)} kg × ${num(r,1)}% = ${num(carcKg(p,r),1)} kg de carcaça ÷ ${ARROBA_CARCACA_KG} kg`:rWarn;
+  if(c.erro==='preco'){set('','',rb,`⚠ Cadastre o preço da @ de carcaça (${sxSg(sexo)}) em "Planilhas de preço".`);updateBase(null);return}
+  if(c.erro==='rend'){set('','',rWarn,`<b>Base:</b> ${tag}`);updateBase(null);return}
+  if(modo==='C')set(brl(c.valor),`${brl(c.arroba)} por @ de carcaça  ·  ${brl(c.arroba/ARROBA_CARCACA_KG)} por kg de carcaça`,rb,explainC(p,r,c,sexo));
+  else set(brl(c.valor),`${brl(c.arroba)} por @  ·  ${brl(pkg(c.arroba))} por kg`,rb,explain(p,c,sexo));
+  updateBase(c);
+}
+function salvarPeso(){
+  const p=parsePeso($('peso').value),r=getRend();
+  if(!(p>0)||p>1500){alert('Informe um peso válido (kg)');return}
+  if(!r){alert('Informe o aproveitamento de carcaça (1 a 100%)');return}
+  const c=calcAny(modo,sexo,p,r);
+  if(c.erro==='preco'){alert(`Cadastre o preço da @ de carcaça (${sxSg(sexo)}) em "Planilhas de preço" antes de registrar pesos nessa base.`);return}
+  const x={id:uid(),t:Date.now(),sexo,peso:p,arroba:c.arroba,valor:c.valor,ref:modo==='C'?refC:ref,lo:c.lo,hi:c.hi,rend:r,ac:c.ac,modo};
+  pesos.push(x);SV('gc_pesos_'+lote.id,pesos);
+  enqueue('addPeso',pesoParams(x));
+  $('peso').value='';lista();preview();$('peso').focus();
+  $('btnRel').disabled=false;
+}
+function totais(a){
+  const tp=a.reduce((s,x)=>s+x.peso,0),tv=a.reduce((s,x)=>s+x.valor,0),ta=a.reduce((s,x)=>s+acOf(x),0);
+  return{tp,tv,ta,n:a.length,kg:tp?tv/tp:0,carcKg:ta*ARROBA_CARCACA_KG};
+}
+function lista(){
+  const t=totais(pesos);
+  $('sum').innerHTML=`<div><b>${t.n}</b><span>cabeças</span></div><div><b>${num(t.tp)} kg</b><span>peso total</span></div><div><b>${num(t.ta,2)} @</b><span>carcaça</span></div><div><b>${brl(t.tv)}</b><span>valor total</span></div>`;
+  $('lst').innerHTML=pesos.length?`<table><tr><th>#</th><th></th><th>Peso</th><th>@ carc.</th><th>R$/@</th><th>R$/kg</th><th>Valor</th><th></th></tr>${pesos.map((x,i)=>`<tr><td>${i+1}</td><td>${x.sexo==='M'?'♂':'♀'}</td><td>${num(x.peso)} kg<br><small>${faixaTxt(x)}</small></td><td>${num(acOf(x),2)}<br><small>${num(rendOf(x),1)}%</small></td><td>${num(x.arroba,2)}</td><td>${num(pkgOf(x),2)}${isC(x)?'<br><small>carc.</small>':''}</td><td>${brl(x.valor)}</td><td><button class="x" onclick="delPeso('${x.id}')">✕</button></td></tr>`).reverse().join('')}</table>`:'<p class="muted" style="text-align:center">Nenhum peso registrado</p>';
+}
+function delPeso(id){
+  if(!confirm('Excluir este peso?'))return;
+  pesos=pesos.filter(x=>x.id!==id);SV('gc_pesos_'+lote.id,pesos);
+  const i=queue.findIndex(o=>o.a==='addPeso'&&o.p.id===id);
+  if(i>=0&&queue[i]!==inflight){queue.splice(i,1);saveQ()}else enqueue('delPeso',{id});
+  lista();
+  $('btnRel').disabled=!pesos.length;
+}
+
+/* ====== RELATÓRIO ====== */
+function sorted(){return pesos.slice().sort((a,b)=>a.peso-b.peso)}
+// faixas da tabela de peso vivo efetivamente usadas (agrupadas por referência e sexo)
+function baseGroups(){
+  const g=new Map();
+  pesos.forEach(x=>{
+    if(isC(x)||!x.lo)return;
+    const k=x.sexo+'|'+(x.ref||'');
+    if(!g.has(k))g.set(k,{sexo:x.sexo,ref:x.ref||'',rows:new Map()});
+    [x.lo,x.hi].forEach(f=>g.get(k).rows.set(f.peso,f));
+  });
+  return [...g.values()].map(o=>({sexo:o.sexo,ref:o.ref,rows:[...o.rows.values()].sort((a,b)=>b.peso-a.peso)}));
+}
+// preços da @ de carcaça efetivamente usados (agrupados por referência)
+function baseGroupsC(){
+  const g=new Map();
+  pesos.forEach(x=>{
+    if(!isC(x))return;
+    const k=x.ref||'';
+    if(!g.has(k))g.set(k,{ref:k,rows:new Map()});
+    g.get(k).rows.set(x.sexo+'|'+x.arroba,{sexo:x.sexo,arroba:x.arroba});
+  });
+  return [...g.values()].map(o=>({ref:o.ref,rows:[...o.rows.values()].sort((a,b)=>a.sexo<b.sexo?1:-1)}));
+}
+function baseRowsHtml(rows){
+  return `<table><tr><th>Peso kg</th><th>@</th><th>R$/@</th><th>R$/kg</th><th>R$/cabeça</th></tr>${rows.map(r=>`<tr><td>${num(r.peso,0)}</td><td>${num(r.peso/ARROBA_KG,1)}</td><td>${num(r.arroba,2)}</td><td>${num(pkg(r.arroba),2)}</td><td>${num(r.peso/ARROBA_KG*r.arroba,2)}</td></tr>`).join('')}</table>`;
+}
+const BASE_TXT=`Peso vivo: valor = peso ÷ ${ARROBA_KG} kg × preço da @ (interpolado entre as duas faixas vizinhas da tabela); R$/kg = R$/@ ÷ ${ARROBA_KG}. Carcaça: @ de carcaça = peso × aproveitamento ÷ ${ARROBA_CARCACA_KG} kg; valor = @ de carcaça × preço da @ de carcaça; R$/kg = R$/@ ÷ ${ARROBA_CARCACA_KG}.`;
+function renderRel(){
+  const s=sorted(),t=totais(s);
+  const bg=baseGroups(),bc=baseGroupsC();
+  $('app').innerHTML=`<div class="card"><b>${esc(loteNome(lote))}</b> <span class="muted">${code(lote)}</span>
+    <div class="muted">Proprietário: ${esc(lote.prop)} · ${esc(lote.tel)}</div>
+    <div class="muted">Lote criado em ${fmtDate(lote.t)}</div>
+    <div class="muted">Relatório gerado em ${fmtDate(Date.now())}</div></div>
+  <div class="card sum c4"><div><b>${t.n}</b><span>cabeças</span></div><div><b>${num(t.tp)} kg</b><span>peso total</span></div><div><b>${num(t.ta,2)} @</b><span>carcaça</span></div><div><b>${brl(t.tv)}</b><span>valor total</span></div></div>
+  <div class="card"><table><tr><th>#</th><th></th><th>Peso</th><th>@ carc.</th><th>R$/@</th><th>R$/kg</th><th>Valor</th></tr>${s.map((x,i)=>`<tr><td>${i+1}</td><td>${x.sexo==='M'?'♂':'♀'}</td><td>${num(x.peso)}<br><small>${faixaTxt(x)}</small></td><td>${num(acOf(x),2)}<br><small>${num(rendOf(x),1)}%</small></td><td>${num(x.arroba,2)}</td><td>${num(pkgOf(x),2)}${isC(x)?'<br><small>carc.</small>':''}</td><td>${brl(x.valor)}</td></tr>`).join('')}
+  <tr><td colspan="2"><b>Total</b></td><td><b>${num(t.tp)}</b></td><td><b>${num(t.ta,2)}</b></td><td></td><td><b>${num(t.kg,2)}</b></td><td><b>${brl(t.tv)}</b></td></tr></table>
+  <p class="muted">R$/kg no total = valor médio por kg vivo do lote.</p></div>
+  <div class="card"><b>Base de cálculo</b>
+    <p class="muted">${BASE_TXT}</p>
+    ${bg.map(g=>`<p class="muted" style="margin:10px 0 4px"><b>🐂 Peso vivo · ${sxPl(g.sexo)}</b> · ${esc(g.ref||'tabela sem referência')}</p>${baseRowsHtml(g.rows)}`).join('')}
+    ${bc.map(g=>`<p class="muted" style="margin:10px 0 4px"><b>🥩 Carcaça</b> · ${esc(g.ref||'tabela sem referência')}</p><table><tr><th>Sexo</th><th>R$/@ carcaça</th><th>R$/kg carcaça</th></tr>${g.rows.map(r=>`<tr><td>${sxSg(r.sexo)}</td><td>${num(r.arroba,2)}</td><td>${num(r.arroba/ARROBA_CARCACA_KG,2)}</td></tr>`).join('')}</table>`).join('')}
+    ${(!bg.length&&!bc.length)?'<p class="muted">—</p>':''}
+  </div>
+  <button class="btn" onclick="baixarPdf()">⬇ Exportar PDF</button>
+  <button class="btn wa" onclick="enviarWa()">📲 Enviar por WhatsApp</button>`;
+}
+function makePdf(){
+  const {jsPDF}=window.jspdf,d=new jsPDF(),s=sorted(),t=totais(s);
+  d.setFillColor(74,63,56);d.rect(0,0,210,30,'F');
+  d.setTextColor(255);d.setFontSize(18);d.text('Relatório de Pesagem',14,13);
+  d.setFontSize(11);d.text(loteNome(lote)+'  ·  '+code(lote),14,22);
+  d.setTextColor(40);d.setFontSize(11);
+  d.text('Proprietário: '+lote.prop,14,39);d.text('Telefone: '+(lote.tel||'-'),110,39);
+  d.text('Lote criado em: '+fmtDate(lote.t),14,46);d.text('Relatório gerado em: '+fmtDate(Date.now()),110,46);
+  d.text('Cabeças: '+t.n+'   Peso total: '+num(t.tp)+' kg   Média: '+num(t.n?t.tp/t.n:0)+' kg',14,54);
+  d.text('Carcaça: '+num(t.ta,2)+' @ ('+num(t.carcKg,1)+' kg)   Valor médio: '+brl(t.kg)+' por kg vivo',14,61);
+  d.autoTable({startY:66,head:[['#','Sexo','Peso (kg)','Base','Aprov.','@ carcaça','R$/@','R$/kg','Valor']],
+    body:s.map((x,i)=>[i+1,x.sexo==='M'?'Macho':'Fêmea',num(x.peso),isC(x)?'carcaça':faixaTxt(x),num(rendOf(x),1)+'%',num(acOf(x),2),num(x.arroba,2),num(pkgOf(x),2),brl(x.valor)]),
+    foot:[['','Total',num(t.tp),'','',num(t.ta,2),'',num(t.kg,2),brl(t.tv)]],
+    headStyles:{fillColor:[74,63,56]},footStyles:{fillColor:[244,124,60],textColor:255},
+    alternateRowStyles:{fillColor:[255,244,236]},styles:{halign:'center',fontSize:8.5,cellPadding:2}});
+  let y=d.lastAutoTable.finalY+10;
+  if(y>250){d.addPage();y=18}
+  d.setFontSize(12);d.setFont(undefined,'bold');d.text('Base de cálculo',14,y);d.setFont(undefined,'normal');
+  d.setFontSize(9.5);
+  const f=d.splitTextToSize(BASE_TXT+' Em pesos lançados como carcaça, R$/@ e R$/kg se referem à carcaça. Tabelas utilizadas neste lote:',182);
+  d.text(f,14,y+6);y+=6+f.length*4.5+2;
+  baseGroups().forEach(g=>{
+    if(y>245){d.addPage();y=18}
+    d.setFont(undefined,'bold');d.text('Peso vivo · '+(g.sexo==='M'?'Machos':'Fêmeas')+' — '+(g.ref||'tabela sem referência'),14,y+3);d.setFont(undefined,'normal');
+    d.autoTable({startY:y+6,head:[['Peso (kg)','@','R$/@','R$/kg','R$/cabeça']],
+      body:g.rows.map(r=>[num(r.peso,0),num(r.peso/ARROBA_KG,1),num(r.arroba,2),num(pkg(r.arroba),2),num(r.peso/ARROBA_KG*r.arroba,2)]),
+      headStyles:{fillColor:[120,105,95]},styles:{halign:'center',fontSize:9},margin:{left:14,right:14}});
+    y=d.lastAutoTable.finalY+8;
+  });
+  baseGroupsC().forEach(g=>{
+    if(y>245){d.addPage();y=18}
+    d.setFont(undefined,'bold');d.text('Carcaça — '+(g.ref||'tabela sem referência'),14,y+3);d.setFont(undefined,'normal');
+    d.autoTable({startY:y+6,head:[['Sexo','R$/@ de carcaça','R$/kg de carcaça']],
+      body:g.rows.map(r=>[r.sexo==='M'?'Macho':'Fêmea',num(r.arroba,2),num(r.arroba/ARROBA_CARCACA_KG,2)]),
+      headStyles:{fillColor:[120,105,95]},styles:{halign:'center',fontSize:9},margin:{left:14,right:14}});
+    y=d.lastAutoTable.finalY+8;
+  });
+  return d;
+}
+function fileName(){return 'pesagem_'+loteNome(lote).replace(/[^\w]+/g,'_')+'_'+code(lote).slice(1)+'.pdf'}
+function baixarPdf(){makePdf().save(fileName())}
+async function enviarWa(){
+  const d=makePdf(),blob=d.output('blob'),name=fileName();
+  const t=totais(sorted());
+  const txt=`Olá ${lote.prop}! Segue o relatório de pesagem do lote "${loteNome(lote)}".\n🐂 ${t.n} cabeças · ${num(t.tp)} kg\n🥩 ${num(t.ta,2)} @ de carcaça\n💰 Valor total: ${brl(t.tv)}`;
+  const file=new File([blob],name,{type:'application/pdf'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],text:txt});return}catch(e){if(e.name==='AbortError')return}
+  }
+  d.save(name);
+  let tel=(lote.tel||'').replace(/\D/g,'');if(tel&&tel.length<=11)tel='55'+tel;
+  window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(txt+'\n\n(PDF baixado — anexe o arquivo na conversa)'),'_blank');
+}
+
+/* ====== PLANILHAS DE PREÇOS ====== */
+let pSexo='M', pTab='V';
+function renderPrecos(){
+  const tabs=`<div class="seg modo"><button class="${pTab==='V'?'on':''}" onclick="pTab='V';renderPrecos()">🐂 Peso vivo</button><button class="${pTab==='C'?'on':''}" onclick="pTab='C';renderPrecos()">🥩 Carcaça</button></div>`;
+  if(pTab==='C'){
+    const inp=s=>`<label>${sxSg(s)} — R$ por @ de carcaça</label><input inputmode="decimal" placeholder="0,00" value="${precosC[s]>0?String(precosC[s]).replace('.',','):''}" onchange="editC('${s}',this.value)"><div class="muted">${precosC[s]>0?'= '+brl(precosC[s]/ARROBA_CARCACA_KG)+' por kg de carcaça':'não cadastrado'}</div>`;
+    $('app').innerHTML=tabs+`<div class="card"><label>Referência da tabela de carcaça (aparece nos cálculos e relatórios)</label><input value="${esc(refC)}" onchange="refC=this.value.trim()||DEFAULT_REF_C;SV('gc_refC',refC)">
+      ${inp('M')}${inp('F')}
+      <p class="muted">Usada quando o peso é registrado na base "Carcaça": valor = @ de carcaça (peso × aproveitamento ÷ ${ARROBA_CARCACA_KG} kg) × preço da @ de carcaça.</p></div>
+      <button class="btn" onclick="salvarPrecos()">💾 Salvar tabelas</button>`;
+    return;
+  }
+  const t=(precos[pSexo]||[]).slice().sort((a,b)=>b.peso-a.peso);
+  $('app').innerHTML=tabs+`<div class="card"><label>Referência da tabela de peso vivo (aparece nos cálculos e relatórios)</label><input id="refin" value="${esc(ref)}" onchange="ref=this.value.trim()||DEFAULT_REF;SV('gc_ref',ref)"></div>
+  <div class="seg"><button class="${pSexo==='M'?'on':''}" onclick="pSexo='M';renderPrecos()">♂ Machos</button><button class="${pSexo==='F'?'on':''}" onclick="pSexo='F';renderPrecos()">♀ Fêmeas</button></div>
+  <p class="muted">Edite o peso e o preço por @. Preço/kg e preço/cabeça são calculados. Pesos entre as faixas são interpolados.</p>
+  <div class="card"><table><tr><th>Peso kg</th><th>@</th><th>R$/@</th><th>R$/kg</th><th>R$/cab.</th><th></th></tr>
+  ${t.map((r,i)=>`<tr><td><input value="${r.peso}" inputmode="decimal" onchange="editP(${i},'peso',this.value)"></td><td>${num(r.peso/ARROBA_KG,1)}</td><td><input value="${r.arroba}" inputmode="decimal" onchange="editP(${i},'arroba',this.value)"></td><td>${num(pkg(r.arroba),2)}</td><td>${num(r.peso/ARROBA_KG*r.arroba,2)}</td><td><button class="x" onclick="delP(${i})">✕</button></td></tr>`).join('')}</table></div>
+  <button class="btn ghost" onclick="addP()">➕ Adicionar faixa</button>
+  <button class="btn" onclick="salvarPrecos()">💾 Salvar tabelas</button>
+  <button class="btn ghost" onclick="resetP()">Restaurar tabela original (13/10)</button>`;
+}
+function editC(s,v){const n=parseFloat(String(v).replace(',','.'));precosC[s]=n>0?n:0;SV('gc_precosC',precosC);renderPrecos()}
+function sortedDesc(){return precos[pSexo].sort((a,b)=>b.peso-a.peso)}
+function editP(i,k,v){const n=parseFloat(String(v).replace(',','.'));if(!(n>0)){renderPrecos();return}sortedDesc()[i][k]=n;renderPrecos()}
+function delP(i){if(precos[pSexo].length<=2){alert('Mantenha ao menos 2 faixas');return}sortedDesc().splice(i,1);renderPrecos()}
+function addP(){const t=sortedDesc();t.push({peso:(t[t.length-1]?.peso||200)-15,arroba:t[t.length-1]?.arroba||400});renderPrecos()}
+function resetP(){if(confirm('Voltar para a tabela original de 13/10?')){precos=toPrecos(DEFAULT_PRECOS);ref=DEFAULT_REF;SV('gc_ref',ref);renderPrecos()}}
+function salvarPrecos(){
+  SV('gc_precos',precos);SV('gc_ref',ref);SV('gc_precosC',precosC);SV('gc_refC',refC);
+  const data=['M','F'].flatMap(s=>precos[s].map(r=>s+':'+r.peso+':'+r.arroba)).concat(['CM:0:'+(precosC.M||0),'CF:0:'+(precosC.F||0)]).join(';');
+  dropOps(o=>o.a==='savePrecos');
+  enqueue('savePrecos',{data,ref,refc:refC});
+  alert('Tabelas salvas. Valem para os próximos pesos; pesos já registrados mantêm a base e o valor da época (use "Recalcular com a tabela atual" no lote se quiser atualizar).');
+}
+
+/* ====== INIT ====== */
+setSync();render();
+if(SCRIPT_URL){flush();syncDown()}
+</script>
+</body>
+</html>
